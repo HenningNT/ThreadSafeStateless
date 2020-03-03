@@ -12,9 +12,8 @@ namespace RxStateMachine
         {
             RxStateMachine stateMachine = new RxStateMachine();
 
-            stateMachine.Fire(Trigger.X);
-            stateMachine.Fire(Trigger.Y);
-            stateMachine.Fire(Trigger.X);
+            stateMachine.Enqueue(Trigger.X);
+            stateMachine.Enqueue(Trigger.Y);
 
             Console.WriteLine("All triggers queued " + Environment.NewLine);
             Console.ReadLine();
@@ -22,7 +21,7 @@ namespace RxStateMachine
     }
     public enum Trigger { X, Y }
 
-    public enum State { A, B }
+    public enum State { A, B, C }
 
     public class RxStateMachine
     {
@@ -34,23 +33,30 @@ namespace RxStateMachine
             _stateMachine = new StateMachine<State, Trigger>(State.A);
 
             _stateMachine.Configure(State.A)
-                .OnEntry(() =>
-                  {
-                      Console.WriteLine("State is now A");
-                      Console.WriteLine("Starting long-running 'task'");
-                      var n = Fib(40);
-                      Console.WriteLine("Done: " + n);
-                  })
                 .Permit(Trigger.X, State.B)
                 .OnExit(() => Console.WriteLine("Exiting State A"));
 
             _stateMachine.Configure(State.B)
-                .OnEntry(() => Console.WriteLine("State is now B"))
-                .Permit(Trigger.Y, State.A)
+                .OnEntry(() =>
+                  {
+                      Console.WriteLine("Entering state B");
+                      Console.WriteLine("Starting long-running 'task'");
+                      var n = Fib(40);
+                      Console.WriteLine("Done: " + n);
+                  })
+                .Permit(Trigger.Y, State.C)
                 .OnExit(() => Console.WriteLine("Exiting State B"));
+
+            _stateMachine.Configure(State.C)
+                .OnEntry(() => Console.WriteLine("Entering state C"));
 
             subject.ObserveOn(TaskPoolScheduler.Default)
                  .Subscribe(HandleTrigger);
+        }
+        public void Enqueue(Trigger trigger)
+        {
+            Console.WriteLine("Queueing trigger " + trigger);
+            subject.OnNext(trigger);
         }
 
         private void HandleTrigger(Trigger trigger)
@@ -60,11 +66,7 @@ namespace RxStateMachine
             Console.WriteLine("Handled trigger " + trigger + Environment.NewLine);
         }
 
-        public void Fire(Trigger trigger)
-        {
-            Console.WriteLine("Queueing trigger " + trigger);
-            subject.OnNext(trigger);
-        }
+
 
         private int Fib(int n)
         {
